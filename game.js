@@ -1,105 +1,326 @@
-const progressBar = document.querySelector("progress");
-
-function randomColor() {
-  const red = Math.floor(Math.random() * 255);
-  const green = Math.floor(Math.random() * 255);
-  const blue = Math.floor(Math.random() * 255);
-  return `rgba(${red},${green},${blue},0.5)`;
-}
-
 class Sprite {
-  constructor(x, y, color, diameter) {
-    Object.assign(this, { x, y, color, diameter });
-  }
-  get radius() {
-    return this.diameter/2;
+  constructor(x, y, diameter, speed) {
+    Object.assign(this, { x, y, diameter, speed });
+    this.radius = diameter / 2;
   }
 }
 
 class Player extends Sprite {
   constructor() {
-    super(0, 0, "white", 20);
+    super(width / 2, height / 2, 30, 5);
     this.health = 100;
   }
   render() {
-    fill(this.color);
-    circle((this.x = mouseX), (this.y = mouseY), this.diameter);
+    image(playerSprite, this.x, this.y, 100, 100);
+  }
+  move() {
+    if (keyIsDown(68) && this.x < width - this.diameter / 2) {
+      this.x += this.speed;
+    } else if (keyIsDown(65) && this.x > 0 + this.diameter / 2) {
+      this.x -= player.speed;
+    }
+    if (keyIsDown(87) && this.y > 0 + this.diameter / 2) {
+      this.y -= this.speed;
+    } else if (keyIsDown(83) && this.y < height - this.diameter / 2) {
+      this.y += this.speed;
+    }
   }
   takeHit() {
-    player.health -= 1;
-    console.log();
-    progressBar.value = player.health;
+    this.health -= 0.5;
+    hitSound.play(0, 3);
+    healthBar.value = this.health;
+  }
+  gainHealth() {
+    this.health += 10;
+    healthBar.value = this.health;
+  }
+  isDead() {
+    return this.health <= 0;
   }
 }
 
 class Enemy extends Sprite {
   constructor(x, y, speed) {
-    super(x, y, randomColor(), 50);
-    this.speed = speed;
+    super(x, y, 50, speed);
   }
   render() {
-    fill(this.color);
-    circle(this.x, this.y, this.diameter);
+    image(enemySprite, this.x, this.y, 100, 100);
   }
   move() {
-    this.x += this.speed * (mouseX - this.x);
-    this.y += this.speed * (mouseY - this.y);
+    if (scarecrow.active) {
+      follow(this, scarecrow);
+    } else {
+      follow(this, player);
+    }
+  }
+  spawner() {
+    if (spawning) {
+      let enemySpeed = Math.random() * 2 + 2;
+      enemies.push(
+        new Enemy(...randomXYOffScreen(), enemySpeed),
+        new Enemy(...randomXYOffScreen(), enemySpeed),
+        new Enemy(...randomXYOffScreen(), enemySpeed)
+      );
+      spawning = false;
+      setTimeout(() => {
+        spawning = true;
+        wave += 1;
+      }, 10000);
+      waveNumber.textContent = wave;
+    }
   }
 }
 
+class Scarecrow {
+  constructor() {
+    this.color = "lightblue";
+    this.size = [100, 100];
+    this.active = false;
+    this.x;
+    this.y;
+    this.timeout = false;
+    this.cooldown = 10000;
+    this.time = 5000;
+  }
+  render() {
+    push();
+    scarecrowAngle += 5;
+    translate(this.x, this.y);
+    scale(0.75);
+    rotate(scarecrowAngle);
+    image(scarecrowSprite, 0, 0);
+    pop();
+  }
+  used() {
+    if (this.timeout === false) {
+      scarecrow.active = true;
+      scarecrow.x = player.x;
+      scarecrow.y = player.y;
+      setTimeout(() => {
+        this.timeout = true;
+        scarecrow.active = false;
+        setTimeout(() => (this.timeout = false), scarecrow.cooldown);
+      }, scarecrow.time);
+    }
+  }
+  check() {
+    if (scarecrow.active) {
+      scarecrow.render();
+    }
+  }
+}
+
+class Items {
+  constructor(x, y, size, diameter) {
+    Object.assign(this, { x, y, size, diameter });
+  }
+}
+class Powerup extends Items {
+  constructor(x, y) {
+    super(x, y, [50, 50], 50);
+  }
+  render() {
+    image(powerupSprite, this.x, this.y, ...this.size);
+  }
+  timer() {
+    if (millis() > startTimePowerup + deltaTimePowerup) {
+      if (collided(player, powerup)) {
+        startTimePowerup = millis();
+      }
+      drawPowerup = true;
+    }
+  }
+  giveHealth() {
+    if (drawPowerup) {
+      if (collided(player, powerup)) {
+        player.gainHealth();
+        powerupSound.play(0, 3);
+        powerup = new Powerup(...randomXYOnScreen());
+        drawPowerup = false;
+      }
+    }
+  }
+  activate() {
+    if (drawPowerup) {
+      powerup.render();
+    }
+  }
+}
+
+class Bomb extends Items {
+  constructor(x, y) {
+    super(x, y, [65, 65], 65);
+  }
+  render() {
+    image(bombSprite, this.x, this.y, ...this.size);
+  }
+  timer() {
+    if (millis() > startTimeBomb + deltaTimeBomb) {
+      if (collided(player, bomb)) {
+        startTimeBomb = millis();
+      }
+      drawBomb = true;
+    }
+  }
+  removeEnemies() {
+    if (drawBomb) {
+      if (collided(player, bomb)) {
+        enemies.length = enemies.length - 3;
+        bombSound.play(0, 3);
+        bomb = new Bomb(...randomXYOnScreen());
+        drawBomb = false;
+      }
+    }
+  }
+  activate() {
+    if (drawBomb) {
+      bomb.render();
+    }
+  }
+}
+
+const healthBar = document.querySelector("progress");
+const waveNumber = document.querySelector("#wave");
+const width = 800;
+const height = 600;
+let playerSprite;
+let enemySprite;
+let scarecrowSprite;
+let powerupSprite;
+let bombSprite;
+let backgroundTexture;
+let player = new Player();
+let enemies = [new Enemy(...randomXYOffScreen(), Math.random() * 2 + 2)];
+let scarecrow = new Scarecrow();
+let scarecrowAngle = 0;
+let wave = 1;
+let spawning = true;
+let paused = false;
+let hitSound;
+let gameOverSound;
+let powerupSound;
+let bombSound;
+let gameOverFont;
+let powerup = new Powerup(...randomXYOnScreen());
+let bomb = new Bomb(...randomXYOnScreen());
+let startTimePowerup;
+let startTimeBomb;
+let deltaTimePowerup = 10000;
+let deltaTimeBomb = 20000;
+let drawPowerup = false;
+let drawBomb = false;
+
+function preload() {
+  soundFormats("mp3");
+  hitSound = loadSound(
+    "https://hecrabbs.github.io/chaser-game/Assets/hitSound.mp3"
+  );
+  gameOverSound = loadSound(
+    "https://hecrabbs.github.io/chaser-game/Assets/gameOverSound.mp3"
+  );
+  powerupSound = loadSound(
+    "https://hecrabbs.github.io/chaser-game/Assets/powerupSound.mp3"
+  );
+  bombSound = loadSound(
+    "https://hecrabbs.github.io/chaser-game/Assets/bombSound.mp3"
+  );
+  playerSprite = loadImage(
+    "https://hecrabbs.github.io/chaser-game/Assets/playerSprite.png"
+  );
+  enemySprite = loadImage(
+    "https://hecrabbs.github.io/chaser-game/Assets/Toal.png"
+  );
+  backgroundTexture = loadImage(
+    "https://hecrabbs.github.io/chaser-game/Assets/grass.png"
+  );
+  scarecrowSprite = loadImage(
+    "https://hecrabbs.github.io/chaser-game/Assets/hole.png"
+  );
+  powerupSprite = loadImage(
+    "https://hecrabbs.github.io/chaser-game/Assets/powerup.png"
+  );
+  bombSprite = loadImage(
+    "https://hecrabbs.github.io/chaser-game/Assets/bomb.png"
+  );
+  gameOverFont = loadFont(
+    "https://hecrabbs.github.io/chaser-game/Assets/game_over.ttf"
+  );
+}
+
+function pause() {
+  pauseButton = createButton("PAUSE");
+  pauseButton.parent("buttonHolder");
+  pauseButton.mousePressed(() => {
+    if (!paused) {
+      noLoop();
+      paused = true;
+    } else {
+      paused = false;
+      loop();
+    }
+  });
+}
+
+function setup() {
+  pause();
+  cnv = createCanvas(width, height);
+  cnv.style("display", "block");
+  cnv.parent("canvasHolder");
+  imageMode(CENTER);
+  rectMode(CENTER);
+  textAlign(CENTER);
+  angleMode(DEGREES);
+  hitSound.setVolume(1);
+  hitSound.playMode("untilDone");
+  gameOverSound.setVolume(1);
+  powerupSound.setVolume(1);
+  bombSound.setVolume(1);
+  startTimePowerup = millis();
+  startTimeBomb = millis();
+}
+
+function keyReleased() {
+  if (keyCode === 32 && !scarecrow.active) {
+    scarecrow.used();
+  }
+}
+
+function randomXYOnScreen() {
+  let randX = Math.random() * (width + 1);
+  let randY = Math.random() * (height + 1);
+  return [randX, randY];
+}
+
+function randomXYOffScreen() {
+  let MinRangeX = Math.random() * 10 - 10;
+  let MaxRangeX = Math.random() * 10 + width;
+  let MinRangeY = Math.random() * 10 - 10;
+  let MaxRangeY = Math.random() * 10 + height;
+  let possibleX = [MinRangeX, MaxRangeX];
+  let possibleY = [MinRangeY, MaxRangeY];
+  let randX = possibleX[Math.floor(Math.random() * 2)];
+  let randY = possibleY[Math.floor(Math.random() * 2)];
+  return [randX, randY];
+}
+
+function follow(follower, leader) {
+  const dx = follower.x - leader.x;
+  const dy = follower.y - leader.y;
+  let direction = Math.atan(dy / dx);
+  if (follower.x > leader.x) {
+    direction -= Math.PI;
+  }
+  follower.x += follower.speed * Math.cos(direction);
+  follower.y += follower.speed * Math.sin(direction);
+}
+
 function collided(sprite1, sprite2) {
+  const sumOfRadii = sprite1.diameter / 2 + sprite2.diameter / 2;
   const distanceBetween = Math.hypot(
     sprite1.x - sprite2.x,
     sprite1.y - sprite2.y
   );
-  const sumOfRadii = sprite1.diameter / 2 + sprite2.diameter / 2;
-  return distanceBetween < sumOfRadii;
-}
-
-function randomPointOnCanvas() {
-  return [
-    Math.floor(Math.random() * width),
-    Math.floor(Math.random() * height)
-  ];
-}
-
-let width = 500;
-let height = 400;
-let player = new Player();
-let enemies = [
-  new Enemy(...randomPointOnCanvas(), 0.05),
-  new Enemy(...randomPointOnCanvas(), 0.002),
-  new Enemy(...randomPointOnCanvas(), 0.01)
-];
-
-function setup() {
-  createCanvas(width, height);
-}
-
-function draw() {
-  background("lightgreen");
-  player.render();
-  enemies.forEach(enemy => {
-    enemy.render();
-    checkForDamage(enemy, player);
-    enemy.move();
-  });
-  adjustSprites();
-}
-
-function checkForDamage(enemy, player) {
-  if (collided(player, enemy)) {
-    player.takeHit();
-  }
-}
-
-function adjustSprites() {
-  const characters = [player, ...enemies];
-  for (let i = 0; i < characters.length; i++) {
-    for (let j = i + 1; j < characters.length; j++) {
-      pushOff(characters[i], characters[j]);
-    }
-  }
+  return distanceBetween <= sumOfRadii;
 }
 
 function pushOff(c1, c2) {
@@ -116,3 +337,70 @@ function pushOff(c1, c2) {
   }
 }
 
+function adjust() {
+  let characters;
+  if (
+    player.x < width - player.diameter / 2 &&
+    player.x > 0 + player.diameter / 2 &&
+    player.y > 0 + player.diameter / 2 &&
+    player.y < height - player.diameter / 2
+  ) {
+    characters = [player, ...enemies];
+  } else {
+    characters = [...enemies];
+  }
+  for (let i = 0; i < characters.length; i++) {
+    for (let j = i + 1; j < characters.length; j++) {
+      pushOff(characters[i], characters[j]);
+    }
+  }
+}
+
+function checkForDamage(player, enemy) {
+  if (collided(player, enemy)) {
+    player.takeHit();
+  }
+}
+
+function doEnemyBehavior() {
+  enemies.forEach(enemy => {
+    enemy.spawner();
+    enemy.render();
+    enemy.move();
+    checkForDamage(player, enemy);
+  });
+}
+
+function drawBackground() {
+  push();
+  imageMode(CORNER);
+  background(backgroundTexture);
+  pop();
+}
+
+function checkGameOver() {
+  if (player.isDead()) {
+    fill("black");
+    textFont(gameOverFont);
+    textSize(140);
+    text("GAME OVER", width / 2, height / 2);
+    noLoop();
+    gameOverSound.play(0, 1.3);
+  }
+}
+
+function draw() {
+  drawBackground();
+  scarecrow.check();
+  doEnemyBehavior();
+  powerup.giveHealth();
+  bomb.removeEnemies();
+  player.render();
+  player.move();
+  adjust();
+  powerup.activate();
+  bomb.activate();
+  powerup.timer();
+  bomb.timer();
+  checkGameOver();
+}
