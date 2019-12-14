@@ -1,7 +1,20 @@
-<link rel="stylesheet" src="game.css">
-<h1>Game</h1>
-<div>
-  <progress value="50" max="100"></progress>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/p5.min.js"></script>
-<script src="game.js"></script>
+<body>
+  <h1>Sunglasses Chase!</h1>
+  <div class='gui'>
+    <span>Wave
+      <span id='wave'></span>
+    </span>
+    <progress value='100' max='100'></progress>
+    <span id='buttonHolder'></span>
+  </div>
+
+  <div>Instructions: Use WASD keys to operate gremlin. Deploy a tornado by pressing the spacebar (can use every 10 seconds). Have fun!</div>
+
+  <div id='canvasHolder'></div>
+
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css?family=Bebas+Neue&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/p5@0.10.2/lib/p5.js"></script>
+  <script src="https://processing.github.io/p5.js-sound/lib/p5.sound.js"></script>
+  <script src="script.js"></script>
+</body>
